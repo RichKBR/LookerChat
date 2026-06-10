@@ -322,13 +322,7 @@ function getSchema() {
   return '';
 }
 
-function toggleSchema() {
-  const area = document.getElementById('schema-area');
-  const btn  = document.getElementById('schema-toggle');
-  const open = area.style.display === 'block';
-  area.style.display = open ? 'none' : 'block';
-  btn.textContent = open ? '+ Add schema context' : '− Hide schema';
-}
+function toggleSchema() {}
 
 function fillQ(q) {
   const inp = document.getElementById('user-input');
