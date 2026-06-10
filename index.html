@@ -156,7 +156,7 @@
 
 <script>
 var WORKER_URL = 'https://lookerchat.richard-ca2.workers.dev';
-var history = [];
+var chatHistory = [];
 
 function fillQ(q) {
   var inp = document.getElementById('user-input');
@@ -272,17 +272,17 @@ function sendMessage() {
   appendMsg('user', q.replace(/</g,'&lt;'));
   var thinkBubble = makeThinking();
 
-  history.push({ role: 'user', content: q });
+  chatHistory.push({ role: 'user', content: q });
 
   fetch(WORKER_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messages: history.slice(-10) })
+    body: JSON.stringify({ messages: chatHistory.slice(-10) })
   })
   .then(function(res) { return res.json(); })
   .then(function(data) {
     if (data.error) throw new Error(data.error);
-    history.push({ role: 'assistant', content: data.summary || data.explanation || '' });
+    chatHistory.push({ role: 'assistant', content: data.summary || data.explanation || '' });
     buildResult(thinkBubble, data.sql || '', data.summary || data.explanation || '', data.rows || []);
   })
   .catch(function(err) {
