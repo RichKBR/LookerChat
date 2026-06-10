@@ -292,20 +292,14 @@
 </div>
 
 <!-- Config -->
-<div id="config-panel">
-  <button id="schema-toggle" onclick="toggleSchema()">+ Add schema context</button>
-  <div id="schema-area">
-    <label style="display:block; margin-bottom:4px;">BigQuery table schema (paste DDL or description)</label>
-    <textarea id="schema-input" placeholder="e.g. table `analytics.sessions` (session_id STRING, user_id STRING, date DATE, channel STRING, revenue FLOAT64, conversions INT64)&#10;table `analytics.campaigns` (campaign_id STRING, name STRING, spend FLOAT64, impressions INT64, clicks INT64, date DATE)"></textarea>
-  </div>
-</div>
+<div id="config-panel" style="display:none;"></div>
 
 <!-- Chat -->
 <div id="chat">
   <div class="msg">
     <div class="avatar ai">AI</div>
     <div class="bubble">
-      Hi! I can turn plain-English questions into BigQuery SQL. Paste your API key above, optionally add your table schema, and ask me anything about your data.
+      Hi! Ask me anything about your campaign data — I'll pull the numbers straight from your dashboard and give you a plain English answer.
       <div class="chip-row">
         <div class="chip" onclick="fillQ('What were total conversions by channel last month?')">Conversions by channel</div>
         <div class="chip" onclick="fillQ('Show me the top 5 campaigns by ROI this quarter')">Top campaigns by ROI</div>
