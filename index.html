@@ -324,20 +324,6 @@
 <div id="notice">SQL is generated for review — connect your BigQuery credentials to run queries</div>
 
 <script>
-const EXAMPLE_RESULT = {
-  "conversions by channel last month": [
-    {channel:"Paid Search", conversions:4821, revenue:"$142,300"},
-    {channel:"Organic",     conversions:3107, revenue:"$98,450"},
-    {channel:"Email",       conversions:2344, revenue:"$74,100"},
-    {channel:"Social",      conversions:1890, revenue:"$52,800"},
-    {channel:"Direct",      conversions:1203, revenue:"$38,900"},
-  ],
-  default: null
-};
-
-function getApiKey() {
-  return document.getElementById('api-key-input').value.trim();
-}
 function getSchema() {
   return document.getElementById('schema-input').value.trim();
 }
@@ -391,22 +377,33 @@ function makeThinking() {
   return appendMsg('ai', '<div class="thinking"><span></span><span></span><span></span></div>');
 }
 
-function buildSQL(bubble, sql, explanation, resultKey) {
+function formatValue(val) {
+  if (val === null || val === undefined) return '-';
+  const num = parseFloat(val);
+  if (!isNaN(num) && val !== '') {
+    if (num > 1000) return num.toLocaleString('en-US', {maximumFractionDigits: 0});
+    return num.toLocaleString('en-US', {maximumFractionDigits: 2});
+  }
+  return val;
+}
+
+function buildResult(bubble, sql, explanation, rows) {
   const safeSQL = sql.replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const id = 'sql-' + Date.now();
 
   let tableHTML = '';
-  const rows = EXAMPLE_RESULT[resultKey] || null;
-  if (rows) {
+  if (rows && rows.length > 0) {
     const cols = Object.keys(rows[0]);
     const thead = cols.map(c => `<th>${c}</th>`).join('');
     const tbody = rows.map(r =>
-      '<tr>' + cols.map(c => `<td>${r[c]}</td>`).join('') + '</tr>'
+      '<tr>' + cols.map(c => `<td>${formatValue(r[c])}</td>`).join('') + '</tr>'
     ).join('');
     tableHTML = `
-      <div style="margin-top:10px; font-size:12px; color:#6b7280;">Sample result (mock data):</div>
+      <div style="margin-top:10px; font-size:12px; color:#6b7280;">${rows.length} row${rows.length !== 1 ? 's' : ''} returned</div>
       <div class="result-table-wrap"><table class="result-table"><thead><tr>${thead}</tr></thead><tbody>${tbody}</tbody></table></div>
     `;
+  } else if (rows) {
+    tableHTML = `<div style="margin-top:10px; font-size:12px; color:#6b7280;">No results found.</div>`;
   }
 
   bubble.innerHTML = `
@@ -420,9 +417,9 @@ function buildSQL(bubble, sql, explanation, resultKey) {
     </div>
     ${tableHTML}
     <div class="chip-row" style="margin-top:12px;">
-      <div class="chip" onclick="fillQ('Break this down further by week')">Break down by week ↗</div>
-      <div class="chip" onclick="fillQ('Add a comparison to the previous period')">Compare to prior period ↗</div>
-      <div class="chip" onclick="fillQ('Show me this as a percentage of total')">As % of total ↗</div>
+      <div class="chip" onclick="fillQ('Break this down further by week')">Break down by week</div>
+      <div class="chip" onclick="fillQ('Add a comparison to the previous period')">Compare to prior period</div>
+      <div class="chip" onclick="fillQ('Show me this as a percentage of total')">As % of total</div>
     </div>
   `;
   scrollToBottom();
@@ -452,57 +449,28 @@ async function sendMessage() {
   appendMsg('user', q.replace(/</g,'&lt;'));
   const thinkBubble = makeThinking();
 
-  const schema = getSchema();
-  const systemPrompt = `You are a BigQuery SQL expert assistant embedded in a Looker Studio dashboard. 
-Your job is to translate natural language questions about marketing and analytics data into correct BigQuery SQL queries.
-
-${schema ? `The user's BigQuery schema is:\n${schema}` : `Assume standard marketing/analytics tables with common fields like date, channel, campaign_id, campaign_name, sessions, conversions, revenue, spend, impressions, clicks, cost_per_click, return_on_ad_spend.`}
-
-Rules:
-- Always output a JSON object with exactly two fields: "sql" (the BigQuery SQL string) and "explanation" (1-2 sentence plain English explanation of what the query does)
-- Use standard BigQuery SQL syntax (backtick table names, DATE functions, etc.)
-- Use \`project.dataset.table\` format for table names; if schema is not provided use placeholder names like \`your_project.analytics.sessions\`
-- Keep queries readable with proper formatting and comments
-- For date filters, use DATE_SUB, DATE_TRUNC etc appropriately
-- Output ONLY valid JSON — no markdown fences, no extra text`;
-
   history.push({ role: 'user', content: q });
 
   try {
     const res = await fetch('https://lookerchat.richard-ca2.workers.dev', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 1000,
-        system: systemPrompt,
-        messages: history.slice(-10)
+        messages: history.slice(-10),
+        schema: getSchema()
       })
     });
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err?.error?.message || `HTTP ${res.status}`);
+      throw new Error(err?.error || `HTTP ${res.status}`);
     }
 
     const data = await res.json();
-    const raw = data.content?.[0]?.text || '';
-    history.push({ role: 'assistant', content: raw });
+    if (data.error) throw new Error(data.error);
 
-    let parsed;
-    try {
-      parsed = JSON.parse(raw.replace(/```json|```/g, '').trim());
-    } catch {
-      thinkBubble.innerHTML = `<div style="color:#d1d5db;">${raw.replace(/</g,'&lt;')}</div>`;
-      document.getElementById('send-btn').disabled = false;
-      return;
-    }
-
-    const qLower = q.toLowerCase();
-    const resultKey = Object.keys(EXAMPLE_RESULT).find(k => qLower.includes(k)) || 'default';
-    buildSQL(thinkBubble, parsed.sql || '', parsed.explanation || '', resultKey);
+    history.push({ role: 'assistant', content: data.explanation || '' });
+    buildResult(thinkBubble, data.sql || '', data.explanation || '', data.rows || []);
 
   } catch (err) {
     thinkBubble.innerHTML = `<span style="color:#f87171;">Error: ${err.message}</span>`;
