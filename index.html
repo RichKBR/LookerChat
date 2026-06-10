@@ -387,9 +387,11 @@ function formatValue(val) {
   return val;
 }
 
-function buildResult(bubble, sql, explanation, rows) {
+function buildResult(bubble, sql, explanation, summary, rows) {
   const safeSQL = sql.replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const id = 'sql-' + Date.now();
+  const tableId = 'table-' + Date.now();
+  const sqlId = 'sqlwrap-' + Date.now();
 
   let tableHTML = '';
   if (rows && rows.length > 0) {
@@ -399,23 +401,36 @@ function buildResult(bubble, sql, explanation, rows) {
       '<tr>' + cols.map(c => `<td>${formatValue(r[c])}</td>`).join('') + '</tr>'
     ).join('');
     tableHTML = `
-      <div style="margin-top:10px; font-size:12px; color:#6b7280;">${rows.length} row${rows.length !== 1 ? 's' : ''} returned</div>
-      <div class="result-table-wrap"><table class="result-table"><thead><tr>${thead}</tr></thead><tbody>${tbody}</tbody></table></div>
+      <div style="margin-top:10px;">
+        <button class="copy-btn" style="font-size:11px; color:#6b7280;" onclick="toggleEl('${tableId}', this)">
+          Show ${rows.length} rows ▸
+        </button>
+        <div id="${tableId}" style="display:none; margin-top:6px;">
+          <div class="result-table-wrap"><table class="result-table"><thead><tr>${thead}</tr></thead><tbody>${tbody}</tbody></table></div>
+        </div>
+      </div>
     `;
   } else if (rows) {
-    tableHTML = `<div style="margin-top:10px; font-size:12px; color:#6b7280;">No results found.</div>`;
+    tableHTML = `<div style="margin-top:8px; font-size:12px; color:#6b7280;">No results found.</div>`;
   }
 
   bubble.innerHTML = `
-    <div style="color:#d1d5db;">${explanation}</div>
-    <div class="sql-block">
-      <div class="sql-header">
-        <span class="sql-label">BigQuery SQL</span>
-        <button class="copy-btn" onclick="copySQL('${id}')">Copy</button>
-      </div>
-      <pre class="sql-code" id="${id}">${safeSQL}</pre>
-    </div>
+    <div style="color:#e8eaf0; line-height:1.7; margin-bottom:10px;">${summary || explanation}</div>
     ${tableHTML}
+    <div style="margin-top:8px;">
+      <button class="copy-btn" style="font-size:11px; color:#6b7280;" onclick="toggleEl('${sqlId}', this)">
+        Show SQL ▸
+      </button>
+      <div id="${sqlId}" style="display:none; margin-top:6px;">
+        <div class="sql-block">
+          <div class="sql-header">
+            <span class="sql-label">BigQuery SQL</span>
+            <button class="copy-btn" onclick="copySQL('${id}')">Copy</button>
+          </div>
+          <pre class="sql-code" id="${id}">${safeSQL}</pre>
+        </div>
+      </div>
+    </div>
     <div class="chip-row" style="margin-top:12px;">
       <div class="chip" onclick="fillQ('Break this down further by week')">Break down by week</div>
       <div class="chip" onclick="fillQ('Add a comparison to the previous period')">Compare to prior period</div>
@@ -423,6 +438,15 @@ function buildResult(bubble, sql, explanation, rows) {
     </div>
   `;
   scrollToBottom();
+}
+
+function toggleEl(id, btn) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const isHidden = el.style.display === 'none';
+  el.style.display = isHidden ? 'block' : 'none';
+  const label = btn.textContent.replace('▸','').replace('▾','').trim();
+  btn.textContent = isHidden ? label + ' ▾' : label + ' ▸';
 }
 
 function copySQL(id) {
@@ -469,8 +493,8 @@ async function sendMessage() {
     const data = await res.json();
     if (data.error) throw new Error(data.error);
 
-    history.push({ role: 'assistant', content: data.explanation || '' });
-    buildResult(thinkBubble, data.sql || '', data.explanation || '', data.rows || []);
+    history.push({ role: 'assistant', content: data.summary || data.explanation || '' });
+    buildResult(thinkBubble, data.sql || '', data.explanation || '', data.summary || data.explanation || '', data.rows || []);
 
   } catch (err) {
     thinkBubble.innerHTML = `<span style="color:#f87171;">Error: ${err.message}</span>`;
